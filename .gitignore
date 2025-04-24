@@ -1,5 +1,6 @@
 # Local files for testing
 test.py
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
