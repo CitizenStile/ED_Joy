@@ -25,7 +25,15 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLineEdit,
+    QCheckBox,
+    QStatusBar,
 )
+
+
+class ButtonState(Enum):
+    UNKNOWN = -1
+    UP = 0
+    DOWN = 1
 
 
 class JoystickEventEmitter(QObject):
@@ -33,6 +41,14 @@ class JoystickEventEmitter(QObject):
         int,  # Joystick ID
         int,  # Axis
         int,  # New value
+    )
+    joystick_button = Signal(
+        int,  # Joystick ID
+        int,  # Button ID
+    )
+    joystick_button_up = Signal(
+        int,  # Joystick ID
+        int,  # Button ID
     )
 
 
@@ -149,9 +165,17 @@ class MainWindow(QMainWindow):
         self.setMinimumWidth(250)
         pg.joystick.init()
 
+        # Create status bar
+        status_bar = QStatusBar()
+        self.setStatusBar(status_bar)
+
+        # Add a label to the status bar
+        self.status_label = QLabel("Launching")
+        status_bar.addPermanentWidget(self.status_label)  # or .showMessage("Ready")
+
         self.threadpool = QThreadPool()
-        thread_count = self.threadpool.maxThreadCount()
-        print("Multithreading with maximum {} threads".format(thread_count))
+        # thread_count = self.threadpool.maxThreadCount()
+        # print("Multithreading with maximum {} threads".format(thread_count))
 
         layout = QVBoxLayout()
 
@@ -162,6 +186,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(w)
 
         self.show()
+        self.status_label.setText("Ready")
 
     def generate_group_boxes(self):
         hbox = QHBoxLayout()
@@ -181,12 +206,13 @@ class MainWindow(QMainWindow):
                 lbl_axis = QLabel("Axis {}".format(axis))
                 le_axis = QLineEdit()
                 le_axis.setReadOnly(True)
+                # le_axis.setFixedWidth(51)
                 self.joystick_axis_widgets[j][axis] = le_axis
                 joy_axis_layout.addWidget(lbl_axis)
                 joy_axis_layout.addWidget(le_axis)
 
                 axis_box_layout.addLayout(joy_axis_layout)
-
+            axis_box_layout.addStretch()
             for button in range(0, joy.get_numbuttons()):
                 pass
 
@@ -222,60 +248,6 @@ class MainWindow(QMainWindow):
     def recurring_timer(self):
         self.counter += 1
         self.label.setText("Counter: {}".format(self.counter))
-
-
-# print(pg.joystick.get_count())
-# joysticks = []
-
-# j_count = pg.joystick.get_count()
-
-# if j_count == 0:
-#     print("No controllers found.")
-# if j_count > 0:
-#     print("Controllers Connected: ")
-#     for j in range(j_count):
-#         joy = pg.joystick.Joystick(j)
-#         print("Joy {}: {}".format(j, joy.get_name()))
-#         print(" - Axis: {}".format(joy.get_numaxes()))
-#         print(" - Buttons: {}".format(joy.get_numbuttons()))
-#         print(" - Hats: {}".format(joy.get_numhats()))
-
-
-class Joystick:
-    def __init__(self):
-        pg.joystick.init()
-        self.is_init = True
-
-    def count(self):
-        return pg.joystick.get_count()
-
-    def get_names(self, joy_no=None):
-        if joy_no is None:
-            for j in range(self.count()):
-                joy = pg.joystick.Joystick(j)
-                print("Joy {}: {}".format(j, joy.get_name()))
-
-    def get_details(self, joy_no=None):
-        if joy_no is None:
-            for j in range(self.count()):
-                joy = pg.joystick.Joystick(j)
-                print("Joy {}: {}".format(j, joy.get_name()))
-                print(" - Axis: {}".format(joy.get_numaxes()))
-                print(" - Buttons: {}".format(joy.get_numbuttons()))
-                print(" - Hats: {}".format(joy.get_numhats()))
-        else:
-            joy = pg.joystick.Joystick(joy_no)
-            for axis in range(0, joy.get_numaxes()):
-                print("Axis{}: {}".format(axis, joy.get_axis(axis)))
-
-    def get_num_axes(self, joy_no):
-        ret = -1
-        try:
-            joy = pg.joystick.Joystick(joy_no)
-            ret = joy.get_numaxes()
-        except:  # noqa: E722
-            pass
-        return ret
 
 
 def main():
