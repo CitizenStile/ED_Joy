@@ -1,32 +1,36 @@
 import os
 import sys
-import time
-import traceback
 import threading
+import traceback
+from enum import Enum
+
+from settings import Settings
 
 # OS environ call to hide the PyGame support prompt
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import pygame as pg
 from PySide6.QtCore import (
-    QTimer,
-    QRunnable,
     QObject,
+    QRunnable,
     QThreadPool,
-    Slot,
     Signal,
+    Slot,
 )
+from PySide6.QtGui import (
+    QAction,
+)
+
 from PySide6.QtWidgets import (
     QApplication,
-    QLabel,
-    QMainWindow,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
+    QCheckBox,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
-    QCheckBox,
+    QMainWindow,
     QStatusBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -82,7 +86,7 @@ def pygame_thread(emitter: JoystickEventEmitter):
                 emitter.joystick_axis_update.emit(
                     event.joy,
                     event.axis,
-                    int(event.value * 100),
+                    int(event.value * 1000),
                 )
             if event.type == pg.JOYBUTTONDOWN:
                 print("Joy: {} Btn: {} Pressed".format(event.joy, event.button))
@@ -161,17 +165,12 @@ class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.setWindowTitle("ED Joy v.{}".format("0.0.1"))
-        self.setMinimumWidth(250)
+        self.setWindowTitle("ED Joy v.{}".format("0.1.0"))
+        self.generate_main_layout()
+        self.settings = Settings()
+        if self.settings["monitor.joysticks"] is None:
+            self.settings["monitor.joysticks"] = []
         pg.joystick.init()
-
-        # Create status bar
-        status_bar = QStatusBar()
-        self.setStatusBar(status_bar)
-
-        # Add a label to the status bar
-        self.status_label = QLabel("Launching")
-        status_bar.addPermanentWidget(self.status_label)  # or .showMessage("Ready")
 
         self.threadpool = QThreadPool()
         # thread_count = self.threadpool.maxThreadCount()
@@ -188,18 +187,87 @@ class MainWindow(QMainWindow):
         self.show()
         self.status_label.setText("Ready")
 
+    def add_monitored_joystick(self, id):
+        if int(id) not in self.settings["monitor.joysticks"]:
+            joysticks = self.settings["monitor.joysticks"]
+            # We need to modify the joysticks then reassign to trigger a save
+            joysticks.append(int(id))
+            self.settings["monitor.joysticks"] = joysticks
+            # print(f"Monitored joysticks: {self.settings['monitor.joysticks']}")
+        # else:
+        #     print(f"Already monitoring {id}")
+
+    def remove_monitored_joystick(self, id):
+        """Remove the given joystick ID
+
+        Args:
+            id (int): Joystick ID # to remove
+        """
+        arr = [x for x in self.settings["monitor.joysticks"] if x != int(id)]
+        self.settings["monitor.joysticks"] = arr
+        # print(f"Monitored joysticks: {self.settings['monitor.joysticks']}")
+
+    def generate_main_layout(self):
+        """Generate the main layout elements such as the menu and status bar"""
+        self.setMinimumWidth(250)
+
+        menu_bar = self.menuBar()
+        # File menu
+        file_menu = menu_bar.addMenu("File")
+
+        # File -> Exit action
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Create status bar
+        status_bar = QStatusBar()
+        self.setStatusBar(status_bar)
+
+        # Add a label to the status bar
+        self.status_label = QLabel("Launching")
+        status_bar.addPermanentWidget(self.status_label)
+
+    def monitor_checkbox_clicked(self):
+        """Callback to add/remove monitored joystick based on the ID from the
+        checkbox name
+        """
+        checkbox = self.sender()  # Get the checkbox that sent the signal
+        if checkbox:
+            # Extract the joystick id from the checkbox name
+            joy_id = checkbox.text().replace("Monitor joystick ", "")
+
+            if checkbox.isChecked():
+                self.add_monitored_joystick(joy_id)
+            else:
+                self.remove_monitored_joystick(joy_id)
+
     def generate_group_boxes(self):
         hbox = QHBoxLayout()
         self.joystick_axis_widgets = {}
-        for j in range(0, pg.joystick.get_count()):
-            joy = pg.joystick.Joystick(j)
-            joystick_group_box = QGroupBox()
-            joystick_group_box.setTitle(joy.get_name())
+        self.joystick_monitor_widgets = {}
+        for joy_index in range(0, pg.joystick.get_count()):
+            joy = pg.joystick.Joystick(joy_index)
+            joy_gb = QGroupBox()
+            joy_gb.setTitle(joy.get_name())
+            axes_group_box = QGroupBox()
+            axes_group_box.setTitle("Axis")
 
             axis_box_layout = QVBoxLayout()
-            # create an array to store each axis's lineedit in
 
-            self.joystick_axis_widgets[j] = {}
+            joy_monitor_layout = QHBoxLayout()
+            # FIXME Need to add logic to auto-check if we are a monitored joystick
+            chk_monitor_joy = QCheckBox()
+            chk_monitor_joy.setText(f"Monitor joystick {joy_index}")
+            if int(joy_index) in self.settings["monitor.joysticks"]:
+                chk_monitor_joy.setChecked(True)
+            chk_monitor_joy.clicked.connect(self.monitor_checkbox_clicked)
+            joy_monitor_layout.addWidget(chk_monitor_joy)
+
+            axis_box_layout.addLayout(joy_monitor_layout)
+
+            # create an array to store each axis's lineedit in
+            self.joystick_axis_widgets[joy_index] = {}
             # Generate a pair of labels/text fields for each axis
             for axis in range(0, joy.get_numaxes()):
                 joy_axis_layout = QHBoxLayout()
@@ -207,7 +275,7 @@ class MainWindow(QMainWindow):
                 le_axis = QLineEdit()
                 le_axis.setReadOnly(True)
                 # le_axis.setFixedWidth(51)
-                self.joystick_axis_widgets[j][axis] = le_axis
+                self.joystick_axis_widgets[joy_index][axis] = le_axis
                 joy_axis_layout.addWidget(lbl_axis)
                 joy_axis_layout.addWidget(le_axis)
 
@@ -216,38 +284,38 @@ class MainWindow(QMainWindow):
             for button in range(0, joy.get_numbuttons()):
                 pass
 
-            joystick_group_box.setLayout(axis_box_layout)
-            hbox.addWidget(joystick_group_box)
+            joy_gb.setLayout(axis_box_layout)
+            hbox.addWidget(joy_gb)
         return hbox
 
     def update_axes_labels(self, joy_id, axis, val):
         self.joystick_axis_widgets[joy_id][axis].setText(str(val))
 
-    def execute_this_fn(self):
-        for n in range(0, 5):
-            time.sleep(1)
-        return "Done."
+    # def execute_this_fn(self):
+    #     for n in range(0, 5):
+    #         time.sleep(1)
+    #     return "Done."
 
-    def print_output(self, s):
-        print(s)
+    # def print_output(self, s):
+    #     print(s)
 
-    def thread_complete(self):
-        print("THREAD COMPLETE!")
+    # def thread_complete(self):
+    #     print("THREAD COMPLETE!")
 
-    def oh_no(self):
-        # Pass the function to execute
-        worker = Worker(
-            self.execute_this_fn
-        )  # Any additional args, kwargs are passed to the run function
-        worker.signals.result.connect(self.print_output)
-        worker.signals.finished.connect(self.thread_complete)
+    # def oh_no(self):
+    #     # Pass the function to execute
+    #     worker = Worker(
+    #         self.execute_this_fn
+    #     )  # Any additional args, kwargs are passed to the run function
+    #     worker.signals.result.connect(self.print_output)
+    #     worker.signals.finished.connect(self.thread_complete)
 
-        # Execute
-        self.threadpool.start(worker)
+    #     # Execute
+    #     self.threadpool.start(worker)
 
-    def recurring_timer(self):
-        self.counter += 1
-        self.label.setText("Counter: {}".format(self.counter))
+    # def recurring_timer(self):
+    #     self.counter += 1
+    #     self.label.setText("Counter: {}".format(self.counter))
 
 
 def main():
