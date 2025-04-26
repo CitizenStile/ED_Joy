@@ -14,7 +14,8 @@ class Settings:
     def __init__(self, *args, **kwargs):
         if not hasattr(self, "initialized"):  # Ensure that we only init once
             self.initialized = True
-            self._settings = {}
+            if not hasattr(self, "_settings"):
+                self._settings = {}
 
     def load_settings(self):
         """Load settings from TOML file"""
@@ -44,7 +45,6 @@ class Settings:
                 value = value[key]
             else:
                 return default
-        # return self._settings.get(key, default)
         return value
 
     def set(self, dotted_key, value):
