@@ -56,7 +56,6 @@ class JoystickEventEmitter(QObject):
     )
 
 
-# Step 2: The pygame thread
 def pygame_thread(emitter: JoystickEventEmitter):
     pg.init()
     pg.joystick.init()
@@ -99,10 +98,10 @@ def pygame_thread(emitter: JoystickEventEmitter):
                     "Joy: {} Hat: {} Val:{}".format(event.joy, event.hat, event.value)
                 )
 
-        pg.time.wait(100)  # Avoid busy loop
+        pg.time.wait(50)
 
 
-class WorkerSignals(QObject):
+class worker_signals(QObject):
     """Signals from a running worker thread.
 
     finished
@@ -124,7 +123,7 @@ class WorkerSignals(QObject):
     progress = Signal(float)
 
 
-class Worker(QRunnable):
+class worker(QRunnable):
     """Worker thread.
 
     Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
@@ -142,7 +141,7 @@ class Worker(QRunnable):
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
-        self.signals = WorkerSignals()
+        self.signals = worker_signals()
         # Add the callback to our kwargs
         self.kwargs["progress_callback"] = self.signals.progress
 
@@ -161,11 +160,11 @@ class Worker(QRunnable):
             self.signals.finished.emit()  # Done
 
 
-class MainWindow(QMainWindow):
+class main_window(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.setWindowTitle("ED Joy v.{}".format("0.1.0"))
+        self.setWindowTitle("ED Joy v.{}".format("0.2.0"))
         self.generate_main_layout()
         self.settings = Settings()
         if self.settings["monitor.joysticks"] is None:
@@ -187,76 +186,23 @@ class MainWindow(QMainWindow):
         self.show()
         self.status_label.setText("Ready")
 
-    def add_monitored_joystick(self, id):
-        if int(id) not in self.settings["monitor.joysticks"]:
-            joysticks = self.settings["monitor.joysticks"]
-            # We need to modify the joysticks then reassign to trigger a save
-            joysticks.append(int(id))
-            self.settings["monitor.joysticks"] = joysticks
-            # print(f"Monitored joysticks: {self.settings['monitor.joysticks']}")
-        # else:
-        #     print(f"Already monitoring {id}")
-
-    def remove_monitored_joystick(self, id):
-        """Remove the given joystick ID
-
-        Args:
-            id (int): Joystick ID # to remove
-        """
-        arr = [x for x in self.settings["monitor.joysticks"] if x != int(id)]
-        self.settings["monitor.joysticks"] = arr
-        # print(f"Monitored joysticks: {self.settings['monitor.joysticks']}")
-
-    def generate_main_layout(self):
-        """Generate the main layout elements such as the menu and status bar"""
-        self.setMinimumWidth(250)
-
-        menu_bar = self.menuBar()
-        # File menu
-        file_menu = menu_bar.addMenu("File")
-
-        # File -> Exit action
-        exit_action = QAction("Exit", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # Create status bar
-        status_bar = QStatusBar()
-        self.setStatusBar(status_bar)
-
-        # Add a label to the status bar
-        self.status_label = QLabel("Launching")
-        status_bar.addPermanentWidget(self.status_label)
-
-    def monitor_checkbox_clicked(self):
-        """Callback to add/remove monitored joystick based on the ID from the
-        checkbox name
-        """
-        checkbox = self.sender()  # Get the checkbox that sent the signal
-        if checkbox:
-            # Extract the joystick id from the checkbox name
-            joy_id = checkbox.text().replace("Monitor joystick ", "")
-
-            if checkbox.isChecked():
-                self.add_monitored_joystick(joy_id)
-            else:
-                self.remove_monitored_joystick(joy_id)
-
     def generate_group_boxes(self):
         hbox = QHBoxLayout()
         self.joystick_axis_widgets = {}
         self.joystick_monitor_widgets = {}
+        # For each Joystick
         for joy_index in range(0, pg.joystick.get_count()):
             joy = pg.joystick.Joystick(joy_index)
             joy_gb = QGroupBox()
             joy_gb.setTitle(joy.get_name())
+            # TODO We could add indicators for each button/hat
             axes_group_box = QGroupBox()
             axes_group_box.setTitle("Axis")
 
             axis_box_layout = QVBoxLayout()
 
+            # Toggle monitored joystick
             joy_monitor_layout = QHBoxLayout()
-            # FIXME Need to add logic to auto-check if we are a monitored joystick
             chk_monitor_joy = QCheckBox()
             chk_monitor_joy.setText(f"Monitor joystick {joy_index}")
             if int(joy_index) in self.settings["monitor.joysticks"]:
@@ -288,8 +234,58 @@ class MainWindow(QMainWindow):
             hbox.addWidget(joy_gb)
         return hbox
 
+    def generate_main_layout(self):
+        """Generate the main layout elements such as the menu and status bar"""
+        self.setMinimumWidth(250)
+
+        menu_bar = self.menuBar()
+        # File menu
+        file_menu = menu_bar.addMenu("File")
+
+        # File -> Exit action
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        # Create status bar
+        status_bar = QStatusBar()
+        self.setStatusBar(status_bar)
+
+        # Add a label to the status bar
+        self.status_label = QLabel("Launching")
+        status_bar.addPermanentWidget(self.status_label)
+
+    def monitor_checkbox_clicked(self):
+        """Callback to add/remove monitored joystick based on the ID from the
+        checkbox name
+        """
+        checkbox = self.sender()  # Get the checkbox that sent the signal
+        if checkbox:
+            # Extract the joystick id from the checkbox name
+            joy_id = checkbox.text().replace("Monitor joystick ", "")
+            self.update_monitored_joystick(joy_id, checkbox.isChecked())
+
     def update_axes_labels(self, joy_id, axis, val):
         self.joystick_axis_widgets[joy_id][axis].setText(str(val))
+
+    def update_monitored_joystick(self, joy_id, is_checked):
+        """Update the settings to add/remove the joystick from the monitored
+        list based on is_checked
+
+        Args:
+            joy_id (int): Joystick ID
+            is_checked (bool): Is the current joystick checked
+        """
+
+        if is_checked:
+            if int(joy_id) not in self.settings["monitor.joysticks"]:
+                joysticks = self.settings["monitor.joysticks"]
+                # We need to modify the joysticks then reassign to trigger a save
+                joysticks.append(int(id))
+                self.settings["monitor.joysticks"] = joysticks
+        else:
+            arr = [x for x in self.settings["monitor.joysticks"] if x != int(id)]
+            self.settings["monitor.joysticks"] = arr
 
     # def execute_this_fn(self):
     #     for n in range(0, 5):
@@ -322,7 +318,7 @@ def main():
     emitter = JoystickEventEmitter()
 
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = main_window()
     window.show()
 
     # Connect the signal to the GUI slot
