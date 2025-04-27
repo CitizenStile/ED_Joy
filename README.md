@@ -21,7 +21,7 @@ While all Joystick/HOTAS should work without issue, the following are confirmed 
 - [ ] Bundle as .exe
 
 
-If you have a feature request, please raise it as an **issue**
+\>\> If you have a feature request, please raise it as an **issue** <<
 
 
 
