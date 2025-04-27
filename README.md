@@ -19,6 +19,7 @@ While all Joystick/HOTAS should work without issue, the following are confirmed 
 - [ ] Terminate launched apps when Elite Dangerous is closed
 - [ ] Check for updates
 - [ ] Bundle as .exe
+- [ ] Hotplug support
 
 
 \>\> If you have a feature request, please raise it as an **issue** <<
