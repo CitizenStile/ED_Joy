@@ -3,6 +3,15 @@ import sys
 import threading
 import traceback
 from enum import Enum
+from time import sleep
+import queue
+import psutil
+import win32api
+import win32gui
+import win32con
+import ctypes
+import pywintypes
+import time
 
 from settings import Settings
 
@@ -99,6 +108,129 @@ def joystick_thread(emitter: JoystickEventEmitter):
                 )
 
         pg.time.wait(50)
+
+
+class process_monitor_emitter(QObject):
+    process_running = Signal(
+        str,  # Process name
+        bool,  # Process running state
+    )
+
+
+class process_monitor_worker(QRunnable):
+    def __init__(self, monitor_window_name, *args, **kwargs):
+        """Initialize our Process Monitor
+        Args:
+            monitor_window_name (str): The name of the process to monitor for
+        """
+        super().__init__()
+        self.monitor_name = monitor_window_name.lower()
+
+        self.queue = queue.Queue()
+        self._win_list = []
+        """Internal list of windows
+        """
+        self.running = False
+
+    def __enum_windows_callback(self, hwnd, result):
+        """capture all running processes with window names"""
+        # TODO potentially refactor the code here so that we are only saving relevant names
+        name = win32gui.GetWindowText(hwnd)
+        # we can exclude blank names
+        if name:
+            result.append((hwnd, name))
+
+    def _get_window_list(self):
+        """update our window list"""
+        self._win_list = []  # Reset our window list
+        win32gui.EnumWindows(self.__enum_windows_callback, self._win_list)
+
+    def focus_on_monitor_window(self):
+        self.queue.put("focus")
+
+    def _focus_window_name(self, window_name, force=False):
+        hwnd = win32gui.FindWindow(None, window_name)
+        if hwnd:
+            self._focus_window(hwnd, force)
+
+    def _focus_window(self, hwnd, force=False):
+        """Set focused window to hwnd. This will gracefully continue if it fails
+
+        Args:
+            hwnd (hwnd): Window Handle
+            force (bool, optional): Force focus by hooking into current active window. Defaults to False.
+        """
+        try:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)
+        except pywintypes.error:
+            if force:
+                self._force_focus(hwnd)
+
+    def _force_focus(self, hwnd_target):
+        """Force focus on specified window.
+        NOTE: As windows restricts when we can focus another program, we need to
+        hook into the active foreground window. This is potentially an issue
+        for games with cheat detection, need to be careful
+
+        Args:
+            hwnd_target (int): Window handle
+        """
+        user32 = ctypes.windll.user32
+        foreground_hwnd = user32.GetForegroundWindow()
+        if foreground_hwnd == hwnd_target:
+            return  # We already have focus
+
+        foreground_tid = user32.GetWindowThreadProcessId(foreground_hwnd, 0)
+        target_tid = user32.GetWindowThreadProcessId(hwnd_target, 0)
+
+        current_thread_id = win32api.GetCurrentThreadId()
+
+        # Attach to the foreground thread
+        user32.AttachThreadInput(current_thread_id, foreground_tid, True)
+        user32.AttachThreadInput(current_thread_id, target_tid, True)
+
+        win32gui.ShowWindow(hwnd_target, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(hwnd_target)
+
+        # Detach from foreground thread
+        user32.AttachThreadInput(current_thread_id, foreground_tid, False)
+        user32.AttachThreadInput(current_thread_id, target_tid, False)
+
+    def run(self):
+        """Start running the process monitor worker"""
+        if self.running:
+            return  # As we are already running, do nothing
+
+        self.running = True
+        while self.running:
+            self._get_window_list()
+            # clear our current vars
+            hwnd = None
+            name = None
+
+            for l_hwnd, l_name in self._win_list:
+                if self.monitor_name in l_name.lower():
+                    hwnd = l_hwnd
+                    name = l_name
+                    break
+
+            try:
+                task = self.queue.get(timeout=0.5)  # Short timeout of 500ms
+                if task == "focus":
+                    print("Received focus signal")
+                    if hwnd:
+                        print(f"Focusing on {name} (hwnd: {hwnd})...")
+                        self._focus_window(hwnd, True)
+
+                    self.queue.task_done()
+            except queue.Empty:
+                continue
+            time.sleep(0.05)  # Sleep for 50ms
+
+    def stop(self):
+        """Stop the process monitor worker"""
+        self.running = False
 
 
 class worker_signals(QObject):
