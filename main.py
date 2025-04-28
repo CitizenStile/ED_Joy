@@ -56,7 +56,7 @@ class JoystickEventEmitter(QObject):
     )
 
 
-def pygame_thread(emitter: JoystickEventEmitter):
+def joystick_thread(emitter: JoystickEventEmitter):
     pg.init()
     pg.joystick.init()
 
@@ -325,7 +325,7 @@ def main():
     emitter.joystick_axis_update.connect(window.update_axes_labels)
 
     # Start pygame in a separate thread
-    thread = threading.Thread(target=pygame_thread, args=(emitter,), daemon=True)
+    thread = threading.Thread(target=joystick_thread, args=(emitter,), daemon=True)
     thread.start()
 
     sys.exit(app.exec())
