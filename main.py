@@ -1,19 +1,17 @@
 __version__ = "0.3.0"
 
+import ctypes
 import os
+import queue
 import sys
 import threading
-import traceback
-from enum import Enum
-from time import sleep
-import queue
-import psutil
-import win32api
-import win32gui
-import win32con
-import ctypes
-import pywintypes
 import time
+import traceback
+
+import pywintypes
+import win32api
+import win32con
+import win32gui
 
 from settings import Settings
 
@@ -30,7 +28,6 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QAction,
 )
-
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -44,11 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-class ButtonState(Enum):
-    UNKNOWN = -1
-    UP = 0
-    DOWN = 1
+# [ ] Need to refresh app when the settings have been modified. (exe name changed)
 
 
 class JoystickEventEmitter(QObject):
@@ -301,14 +294,41 @@ class main_window(QMainWindow):
         self.setWindowTitle("ED Joy {}".format(__version__))
         self.generate_main_layout()
         self.init_settings()
+
         pg.joystick.init()
 
         self.threadpool = QThreadPool()
+
         # thread_count = self.threadpool.maxThreadCount()
         # print("Multithreading with maximum {} threads".format(thread_count))
 
         layout = QVBoxLayout()
+        # Generate a group box to display the monitoring status and select the window title
+        layout_monitor = QVBoxLayout()
 
+        # Begin - Monitor Section
+        gb_monitor = QGroupBox()
+        gb_monitor.setTitle("Application Monitor")
+        layout_monitor.addWidget(gb_monitor)
+        gb_lay_monitor = QVBoxLayout()
+        gb_monitor.setLayout(gb_lay_monitor)
+
+        chk_monitor_state = QCheckBox()
+        chk_monitor_state.setText("Enable Monitor")
+        gb_lay_monitor.addWidget(chk_monitor_state)
+        # hbox for label and combobox
+        gb_lay_hbox = QHBoxLayout()
+        gb_lay_hbox_label = QLabel()
+        gb_lay_hbox_label.setText("Window Title")
+        gb_lay_hbox.addWidget(gb_lay_hbox_label)
+        gb_lay_hbox_ledit_title = QLineEdit()
+        gb_lay_hbox_ledit_title.setText(self.settings["monitor.process.title"])
+        gb_lay_hbox_ledit_title.setReadOnly(True)  # Temp
+        gb_lay_hbox.addWidget(gb_lay_hbox_ledit_title)
+        gb_lay_monitor.addLayout(gb_lay_hbox)
+        # End - Monitor Section
+
+        layout.addLayout(layout_monitor)
         hbox = self.generate_group_boxes()
         layout.addLayout(hbox)
         w = QWidget()
