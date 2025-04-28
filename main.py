@@ -1,3 +1,5 @@
+__version__ = "0.3.0"
+
 import os
 import sys
 import threading
@@ -296,7 +298,7 @@ class main_window(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.setWindowTitle("ED Joy v.{}".format("0.2.0"))
+        self.setWindowTitle("ED Joy {}".format(__version__))
         self.generate_main_layout()
         self.init_settings()
         pg.joystick.init()
