@@ -166,9 +166,7 @@ class main_window(QMainWindow):
 
         self.setWindowTitle("ED Joy v.{}".format("0.2.0"))
         self.generate_main_layout()
-        self.settings = Settings()
-        if self.settings["monitor.joysticks"] is None:
-            self.settings["monitor.joysticks"] = []
+        self.init_settings()
         pg.joystick.init()
 
         self.threadpool = QThreadPool()
@@ -254,6 +252,20 @@ class main_window(QMainWindow):
         # Add a label to the status bar
         self.status_label = QLabel("Launching")
         status_bar.addPermanentWidget(self.status_label)
+
+    def init_settings(self):
+        """Ensure that settings exist, if not give them a default value"""
+        self.settings = Settings()  # This will trigger a load
+        if self.settings["monitor.joysticks"] is None:
+            self.settings["monitor.joysticks"] = []
+
+        # Ensure that we have a process to monitor defined.
+        if self.settings["monitor.process.enabled"] is None:
+            self.settings["monitor.process.enabled"] = False
+
+        # Populate the default Elite Dangerous Client title
+        if self.settings["monitor.process.title"] is None:
+            self.settings["monitor.process.title"] = "Elite - Dangerous (CLIENT)"
 
     def monitor_checkbox_clicked(self):
         """Callback to add/remove monitored joystick based on the ID from the
