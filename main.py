@@ -89,7 +89,7 @@ def joystick_thread(emitter: JoystickEventEmitter):
                 emitter.joystick_axis_update.emit(
                     event.joy,
                     event.axis,
-                    int(event.value * 1000),
+                    int(event.value * 100),
                 )
             if event.type == pg.JOYBUTTONDOWN:
                 print("Joy: {} Btn: {} Pressed".format(event.joy, event.button))
