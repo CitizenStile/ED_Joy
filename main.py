@@ -301,6 +301,7 @@ class main_window(QMainWindow):
         self.setWindowTitle("ED Joy {}".format(__version__))
         self.generate_base_layout()
         self.init_settings()
+        self.pm = None
 
         pg.joystick.init()
 
@@ -309,41 +310,89 @@ class main_window(QMainWindow):
         # thread_count = self.threadpool.maxThreadCount()
         # print("Multithreading with maximum {} threads".format(thread_count))
 
-        layout = QVBoxLayout()
-        # Generate a group box to display the monitoring status and select the window title
-        layout_monitor = QVBoxLayout()
+        layout_main_window = QVBoxLayout()
+        """Layout - Top level layout for the main window"""
 
-        # Begin - Monitor Section
-        gb_monitor = QGroupBox()
-        gb_monitor.setTitle("Application Monitor")
-        layout_monitor.addWidget(gb_monitor)
+        # Begin - Process Monitor
+        gb_proc_monitor = QGroupBox()
+        """Process Monitor group box"""
+        gb_proc_monitor.setTitle("Process Monitor")
+        layout_main_window.addWidget(gb_proc_monitor)
+
         gb_lay_monitor = QVBoxLayout()
-        gb_monitor.setLayout(gb_lay_monitor)
+        """Layout - Process Monitor groupbox"""
+        gb_proc_monitor.setLayout(gb_lay_monitor)
+        # horizontal widget to contain chkbox and le for msgs
 
-        chk_monitor_state = QCheckBox()
-        chk_monitor_state.setText("Enable Monitor")
-        gb_lay_monitor.addWidget(chk_monitor_state)
+        layout_proc_mon_row_0 = QHBoxLayout()
+        """Layout - Process Monitor Row 0"""
+        self.check_monitor_enable = QCheckBox()
+        """Checkbox to enable Process Monitor"""
+        self.check_monitor_enable.setText("Enable Monitor")
+        self.check_monitor_enable.stateChanged.connect(
+            self.on_checkbox_state_change_proc_mon
+        )
+
+        layout_proc_mon_row_0.addWidget(self.check_monitor_enable)
+        self.le_monitor_status = QLineEdit()
+        self.le_monitor_status.setReadOnly(True)
+        self.le_monitor_status.setText("Process Monitor Status")
+        layout_proc_mon_row_0.addWidget(self.le_monitor_status)
+        gb_lay_monitor.addLayout(layout_proc_mon_row_0)
+
         # hbox for label and combobox
-        gb_lay_hbox = QHBoxLayout()
+        layout_proc_mon_row_1 = QHBoxLayout()
         gb_lay_hbox_label = QLabel()
         gb_lay_hbox_label.setText("Window Title")
-        gb_lay_hbox.addWidget(gb_lay_hbox_label)
+        layout_proc_mon_row_1.addWidget(gb_lay_hbox_label)
         gb_lay_hbox_ledit_title = QLineEdit()
         gb_lay_hbox_ledit_title.setText(self.settings["monitor.process.title"])
         gb_lay_hbox_ledit_title.setReadOnly(True)  # Temp
-        gb_lay_hbox.addWidget(gb_lay_hbox_ledit_title)
-        gb_lay_monitor.addLayout(gb_lay_hbox)
+        layout_proc_mon_row_1.addWidget(gb_lay_hbox_ledit_title)
+        gb_lay_monitor.addLayout(layout_proc_mon_row_1)
         # End - Monitor Section
 
-        layout.addLayout(layout_monitor)
+        layout_main_window
         hbox = self.generate_group_boxes()
-        layout.addLayout(hbox)
+        layout_main_window.addLayout(hbox)
         w = QWidget()
-        w.setLayout(layout)
+        w.setLayout(layout_main_window)
         self.setCentralWidget(w)
 
         self.show()
         self.status_label.setText("Ready")
+
+    def on_lineedit_text_change_proc_mon(self, state):
+        # [ ] Restart monitor only if there is a change in text
+        self.restart_proc_monitor()
+        pass
+
+    def on_checkbox_state_change_proc_mon(self, state):
+        if state == 0:
+            self.stop_proc_monitor()
+        elif state == 2:
+            self.start_proc_monitor()
+
+    def restart_proc_monitor(self):
+        """Restart process monitor only if it is running"""
+        if self.pm is not None:
+            self.stop_proc_monitor()
+            self.start_proc_monitor()
+
+    def start_proc_monitor(self):
+        """Start process monitor if it is not running"""
+        if self.pm is None:
+            self.le_monitor_status.setText("Monitor started")
+            # [ ] Add some logic to dynamicly update the monitor status from a function. Change colors/update text in one function
+            self.pm = process_monitor_worker(self.settings["monitor.process.title"])
+            self.threadpool.start(self.pm)
+
+    def stop_proc_monitor(self):
+        """Stop process Monitor if it is running"""
+        if self.pm is not None:
+            self.le_monitor_status.setText("Monitoring stopped")
+            self.pm.stop()
+            self.pm = None
 
     def generate_group_boxes(self):
         hbox = QHBoxLayout()
@@ -354,7 +403,7 @@ class main_window(QMainWindow):
             joy = pg.joystick.Joystick(joy_index)
             joy_gb = QGroupBox()
             joy_gb.setTitle(joy.get_name())
-            # TODO We could add indicators for each button/hat
+            # [ ] We could add indicators for each button/hat
             axes_group_box = QGroupBox()
             axes_group_box.setTitle("Axis")
 
@@ -393,9 +442,9 @@ class main_window(QMainWindow):
             hbox.addWidget(joy_gb)
         return hbox
 
-    def generate_main_layout(self):
+    def generate_base_layout(self):
         """Generate the main layout elements such as the menu and status bar"""
-        self.setMinimumWidth(250)
+        self.setMinimumWidth(300)
 
         menu_bar = self.menuBar()
         # File menu
@@ -440,6 +489,8 @@ class main_window(QMainWindow):
 
     def update_axes_labels(self, joy_id, axis, val):
         self.joystick_axis_widgets[joy_id][axis].setText(str(val))
+
+        # [ ] add logic to update focus if we are on a monitored joystick determined against the settings monitored axis
 
     def update_monitored_joystick(self, joy_id, is_checked):
         """Update the settings to add/remove the joystick from the monitored
