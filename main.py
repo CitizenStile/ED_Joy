@@ -123,6 +123,7 @@ class process_monitor_worker(QRunnable):
 
         self.queue = queue.Queue()
         self._win_list = []
+        self.is_process_running = False
         """Internal list of windows
         """
         self.running = False
@@ -149,7 +150,7 @@ class process_monitor_worker(QRunnable):
             self._focus_window(hwnd, force)
 
     def _focus_window(self, hwnd, force=False):
-        """Set focused window to hwnd. This will gracefully continue if it fails
+        """Private: Set focused window to hwnd. This will gracefully continue if it fails
 
         Args:
             hwnd (hwnd): Window Handle
@@ -163,7 +164,7 @@ class process_monitor_worker(QRunnable):
                 self._force_focus(hwnd)
 
     def _force_focus(self, hwnd_target):
-        """Force focus on specified window.
+        """Private: Force focus on specified window.
         NOTE: As windows restricts when we can focus another program, we need to
         hook into the active foreground window. This is potentially an issue
         for games with cheat detection, need to be careful
@@ -191,6 +192,15 @@ class process_monitor_worker(QRunnable):
         # Detach from foreground thread
         user32.AttachThreadInput(current_thread_id, foreground_tid, False)
         user32.AttachThreadInput(current_thread_id, target_tid, False)
+
+    def _update_proc_running_state(self, is_running):
+        # is_proc_running - Flag indicating last signal
+        # if flag and is_running are different, update the flag and call the signal
+        if self.is_process_running != is_running:
+            self.is_process_running = is_running
+            # [ ] Need to call signal to indicate run state has changed
+
+        pass
 
     def run(self):
         """Start running the process monitor worker"""
