@@ -130,7 +130,7 @@ class process_monitor_worker(QRunnable):
 
     def __enum_windows_callback(self, hwnd, result):
         """capture all running processes with window names"""
-        # TODO potentially refactor the code here so that we are only saving relevant names
+        # [ ] potentially refactor the code here so that we are only saving relevant names
         name = win32gui.GetWindowText(hwnd)
         # we can exclude blank names
         if name:
@@ -212,20 +212,17 @@ class process_monitor_worker(QRunnable):
             self._get_window_list()
             # clear our current vars
             hwnd = None
-            name = None
+            # name = None
 
             for l_hwnd, l_name in self._win_list:
                 if self.monitor_name in l_name.lower():
                     hwnd = l_hwnd
-                    name = l_name
+                    # name = l_name
                     break
-
             try:
                 task = self.queue.get(timeout=0.5)  # Short timeout of 500ms
                 if task == "focus":
-                    print("Received focus signal")
                     if hwnd:
-                        print(f"Focusing on {name} (hwnd: {hwnd})...")
                         self._focus_window(hwnd, True)
 
                     self.queue.task_done()
@@ -302,7 +299,7 @@ class main_window(QMainWindow):
         super().__init__(*args, **kwargs)
 
         self.setWindowTitle("ED Joy {}".format(__version__))
-        self.generate_main_layout()
+        self.generate_base_layout()
         self.init_settings()
 
         pg.joystick.init()
@@ -462,32 +459,6 @@ class main_window(QMainWindow):
         else:
             arr = [x for x in self.settings["monitor.joysticks"] if x != int(id)]
             self.settings["monitor.joysticks"] = arr
-
-    # def execute_this_fn(self):
-    #     for n in range(0, 5):
-    #         time.sleep(1)
-    #     return "Done."
-
-    # def print_output(self, s):
-    #     print(s)
-
-    # def thread_complete(self):
-    #     print("THREAD COMPLETE!")
-
-    # def oh_no(self):
-    #     # Pass the function to execute
-    #     worker = Worker(
-    #         self.execute_this_fn
-    #     )  # Any additional args, kwargs are passed to the run function
-    #     worker.signals.result.connect(self.print_output)
-    #     worker.signals.finished.connect(self.thread_complete)
-
-    #     # Execute
-    #     self.threadpool.start(worker)
-
-    # def recurring_timer(self):
-    #     self.counter += 1
-    #     self.label.setText("Counter: {}".format(self.counter))
 
 
 def main():
