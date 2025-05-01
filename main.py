@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 # [ ] Need to refresh app when the settings have been modified. (exe name changed)
 
 
-class JoystickEventEmitter(QObject):
+class Joystick_Event_Emitter(QObject):
     joystick_axis_update = Signal(
         int,  # Joystick ID
         int,  # Axis
@@ -60,7 +60,7 @@ class JoystickEventEmitter(QObject):
     )
 
 
-def joystick_thread(emitter: JoystickEventEmitter):
+def Joystick_Thread(emitter: Joystick_Event_Emitter):
     pg.init()
     pg.joystick.init()
 
@@ -105,27 +105,31 @@ def joystick_thread(emitter: JoystickEventEmitter):
         pg.time.wait(50)
 
 
-class process_monitor_emitter(QObject):
+class Process_Monitor_Emitter(QObject):
     process_running = Signal(
         str,  # Process name
         bool,  # Process running state
     )
 
 
-class process_monitor_worker(QRunnable):
-    def __init__(self, monitor_window_name, *args, **kwargs):
+class Process_Monitor_Worker(QRunnable):
+    def __init__(
+        self, emitter: Process_Monitor_Emitter, monitor_window_name, *args, **kwargs
+    ):
         """Initialize our Process Monitor
         Args:
             monitor_window_name (str): The name of the process to monitor for
         """
         super().__init__()
+        self.emitter = emitter
         self.monitor_name = monitor_window_name.lower()
 
         self.queue = queue.Queue()
         self._win_list = []
+        """Internal list of windows"""
         self.is_process_running = False
-        """Internal list of windows
-        """
+        self.signals = Process_Monitor_Emitter()
+
         self.running = False
 
     def __enum_windows_callback(self, hwnd, result):
@@ -186,9 +190,12 @@ class process_monitor_worker(QRunnable):
         user32.AttachThreadInput(current_thread_id, foreground_tid, True)
         user32.AttachThreadInput(current_thread_id, target_tid, True)
 
-        win32gui.ShowWindow(hwnd_target, win32con.SW_RESTORE)
-        win32gui.SetForegroundWindow(hwnd_target)
-
+        try:
+            win32gui.ShowWindow(hwnd_target, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd_target)
+        except Exception as e:
+            # print(f"Exception occurred while focusing. {e}")
+            pass
         # Detach from foreground thread
         user32.AttachThreadInput(current_thread_id, foreground_tid, False)
         user32.AttachThreadInput(current_thread_id, target_tid, False)
@@ -198,6 +205,8 @@ class process_monitor_worker(QRunnable):
         # if flag and is_running are different, update the flag and call the signal
         if self.is_process_running != is_running:
             self.is_process_running = is_running
+            print(f"Is running: {is_running}")
+            self.emitter.process_running.emit(self.monitor_name, is_running)
             # [ ] Need to call signal to indicate run state has changed
 
         pass
@@ -219,6 +228,8 @@ class process_monitor_worker(QRunnable):
                     hwnd = l_hwnd
                     # name = l_name
                     break
+            self._update_proc_running_state(hwnd is not None)
+
             try:
                 task = self.queue.get(timeout=0.5)  # Short timeout of 500ms
                 if task == "focus":
@@ -235,7 +246,7 @@ class process_monitor_worker(QRunnable):
         self.running = False
 
 
-class worker_signals(QObject):
+class Worker_Signals(QObject):
     """Signals from a running worker thread.
 
     finished
@@ -257,7 +268,7 @@ class worker_signals(QObject):
     progress = Signal(float)
 
 
-class worker(QRunnable):
+class Worker(QRunnable):
     """Worker thread.
 
     Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
@@ -275,7 +286,7 @@ class worker(QRunnable):
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
-        self.signals = worker_signals()
+        self.signals = Worker_Signals()
         # Add the callback to our kwargs
         self.kwargs["progress_callback"] = self.signals.progress
 
@@ -294,14 +305,15 @@ class worker(QRunnable):
             self.signals.finished.emit()  # Done
 
 
-class main_window(QMainWindow):
-    def __init__(self, *args, **kwargs):
+class Main_Window(QMainWindow):
+    def __init__(self, process_monitor_emitter, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.setWindowTitle("ED Joy {}".format(__version__))
         self.generate_base_layout()
         self.init_settings()
         self.pm = None
+        self.process_monitor_emitter = process_monitor_emitter
 
         pg.joystick.init()
 
@@ -361,6 +373,7 @@ class main_window(QMainWindow):
 
         self.show()
         self.status_label.setText("Ready")
+        self.check_monitor_enable.setChecked(self.settings["monitor.process.enabled"])
 
     def on_lineedit_text_change_proc_mon(self, state):
         # [ ] Restart monitor only if there is a change in text
@@ -369,8 +382,10 @@ class main_window(QMainWindow):
 
     def on_checkbox_state_change_proc_mon(self, state):
         if state == 0:
+            self.settings["monitor.process.enabled"] = False
             self.stop_proc_monitor()
         elif state == 2:
+            self.settings["monitor.process.enabled"] = True
             self.start_proc_monitor()
 
     def restart_proc_monitor(self):
@@ -384,7 +399,9 @@ class main_window(QMainWindow):
         if self.pm is None:
             self.le_monitor_status.setText("Monitor started")
             # [ ] Add some logic to dynamicly update the monitor status from a function. Change colors/update text in one function
-            self.pm = process_monitor_worker(self.settings["monitor.process.title"])
+            self.pm = Process_Monitor_Worker(
+                self.process_monitor_emitter, self.settings["monitor.process.title"]
+            )
             self.threadpool.start(self.pm)
 
     def stop_proc_monitor(self):
@@ -395,9 +412,15 @@ class main_window(QMainWindow):
             self.pm = None
 
     def generate_group_boxes(self):
+        """Generate the groupboxes for all Joysticks."""
         hbox = QHBoxLayout()
+
         self.joystick_axis_widgets = {}
         self.joystick_monitor_widgets = {}
+        # [ ] Implement deadzone on joysticks
+        # self.joystick_deadzone_widgets = {}
+        # [ ] Add display for button's being pressed on Joystick
+
         # For each Joystick
         for joy_index in range(0, pg.joystick.get_count()):
             joy = pg.joystick.Joystick(joy_index)
@@ -412,12 +435,21 @@ class main_window(QMainWindow):
             # Toggle monitored joystick
             joy_monitor_layout = QHBoxLayout()
             chk_monitor_joy = QCheckBox()
-            chk_monitor_joy.setText(f"Monitor joystick {joy_index}")
+            # """Checkbox to toggle joystick monitoring"""
+            chk_monitor_joy.setText(f"Monitor J{joy_index}")
             if int(joy_index) in self.settings["monitor.joysticks"]:
                 chk_monitor_joy.setChecked(True)
-            chk_monitor_joy.clicked.connect(self.monitor_checkbox_clicked)
+            chk_monitor_joy.clicked.connect(self.joystick_monitor_checkbox_clicked)
             joy_monitor_layout.addWidget(chk_monitor_joy)
 
+            # layout_joy_mon_row_1 = QHBoxLayout()
+            # lbl_deadzone = QLabel()
+            # lbl_deadzone.setText("Set Deadzone")
+            # layout_joy_mon_row_1.addWidget(lbl_deadzone)
+            # spin_deadzone = QSpinBox()
+            # self.joystick_deadzone_widgets[joy_index] = spin_deadzone
+            # layout_joy_mon_row_1.addWidget(spin_deadzone)
+            # joy_monitor_layout.addLayout(layout_joy_mon_row_1)
             axis_box_layout.addLayout(joy_monitor_layout)
 
             # create an array to store each axis's lineedit in
@@ -477,18 +509,36 @@ class main_window(QMainWindow):
         if self.settings["monitor.process.title"] is None:
             self.settings["monitor.process.title"] = "Elite - Dangerous (CLIENT)"
 
-    def monitor_checkbox_clicked(self):
+        # Populate the default display name (only used when reporting status)
+        if self.settings["monitor.process.display_name"] is None:
+            self.settings["monitor.process.display_name"] = "Elite Dangerous"
+
+    def joystick_monitor_checkbox_clicked(self):
         """Callback to add/remove monitored joystick based on the ID from the
         checkbox name
         """
         checkbox = self.sender()  # Get the checkbox that sent the signal
         if checkbox:
             # Extract the joystick id from the checkbox name
-            joy_id = checkbox.text().replace("Monitor joystick ", "")
+            joy_id = checkbox.text().replace("Monitor J", "")
             self.update_monitored_joystick(joy_id, checkbox.isChecked())
+
+    def update_process_monitor(self, name, is_running):
+        msg = f"{self.settings['monitor.process.display_name']}"
+        if is_running:
+            msg += " is running"
+        else:
+            msg += " not detected"
+        self.le_monitor_status.setText(msg)
 
     def update_axes_labels(self, joy_id, axis, val):
         self.joystick_axis_widgets[joy_id][axis].setText(str(val))
+        if self.settings["monitor.process.enabled"]:
+            if joy_id in self.settings["monitor.joysticks"]:
+                print(
+                    "Joystick {joy_id} movement detect, joystick is monitored. Changing Focus"
+                )
+                self.pm.focus_on_monitor_window()
 
         # [ ] add logic to update focus if we are on a monitored joystick determined against the settings monitored axis
 
@@ -512,22 +562,26 @@ class main_window(QMainWindow):
             self.settings["monitor.joysticks"] = arr
 
 
-def main():
-    emitter = JoystickEventEmitter()
+def Main():
+    joystick_emitter = Joystick_Event_Emitter()
+    process_monitor_emitter = Process_Monitor_Emitter()
 
     app = QApplication(sys.argv)
-    window = main_window()
+    window = Main_Window(process_monitor_emitter)
     window.show()
 
-    # Connect the signal to the GUI slot
-    emitter.joystick_axis_update.connect(window.update_axes_labels)
+    # Connect the signals to the GUI slots
+    joystick_emitter.joystick_axis_update.connect(window.update_axes_labels)
+    process_monitor_emitter.process_running.connect(window.update_process_monitor)
 
     # Start pygame in a separate thread
-    thread = threading.Thread(target=joystick_thread, args=(emitter,), daemon=True)
+    thread = threading.Thread(
+        target=Joystick_Thread, args=(joystick_emitter,), daemon=True
+    )
     thread.start()
 
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    Main()
