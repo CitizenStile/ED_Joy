@@ -3,6 +3,7 @@ test.py
 .vscode/
 UI/
 settings.toml
+unused.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
