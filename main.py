@@ -1,12 +1,10 @@
-__version__ = "0.3.0"
-
 import ctypes
 import os
 import queue
 import sys
 import threading
 import time
-import traceback
+from pathlib import Path
 
 import pywintypes
 import win32api
@@ -43,6 +41,11 @@ from PySide6.QtWidgets import (
 
 # [ ] Need to refresh app when the settings have been modified. (exe name changed)
 
+def get_version():
+    pyproject = Path(__file__).parent / "pyproject.toml"
+    with Path(pyproject).open("rb") as f:
+        data = tomllib.load(f)
+    return data["project"]["version"]
 
 class Joystick_Event_Emitter(QObject):
     joystick_axis_update = Signal(
@@ -523,6 +526,6 @@ def Main():
 
     sys.exit(app.exec())
 
-
+__version__ = get_version()
 if __name__ == "__main__":
     Main()
