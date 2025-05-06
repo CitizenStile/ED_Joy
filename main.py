@@ -40,7 +40,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# [ ] Need to refresh app when the settings have been modified. (exe name changed)
 
 def get_version():
     pyproject = Path(__file__).parent / "pyproject.toml"
@@ -48,7 +47,7 @@ def get_version():
         data = tomllib.load(f)
     return data["project"]["version"]
 
-class Joystick_Event_Emitter(QObject):
+class JoystickEventEmitter(QObject):
     joystick_axis_update = Signal(
         int,  # Joystick ID
         int,  # Axis
@@ -59,12 +58,7 @@ class Joystick_Event_Emitter(QObject):
         int,  # Button ID
     )
     joystick_button_up = Signal(
-        int,  # Joystick ID
-        int,  # Button ID
-    )
-
-
-def Joystick_Thread(emitter: Joystick_Event_Emitter):
+def joystick_thread(emitter: JoystickEventEmitter):
     pg.init()
     pg.joystick.init()
 
@@ -109,16 +103,9 @@ def Joystick_Thread(emitter: Joystick_Event_Emitter):
         pg.time.wait(50)
 
 
-class Process_Monitor_Emitter(QObject):
-    process_running = Signal(
-        str,  # Process name
-        bool,  # Process running state
-    )
-
-
-class Process_Monitor_Worker(QRunnable):
+class ProcessMonitorWorker(QRunnable):
     def __init__(
-        self, emitter: Process_Monitor_Emitter, monitor_window_name, *args, **kwargs
+        self, emitter: ProcessMonitorEmitter, monitor_window_name, *args, **kwargs
     ):
         """Initialize our Process Monitor
         Args:
@@ -132,7 +119,7 @@ class Process_Monitor_Worker(QRunnable):
         self._win_list = []
         """Internal list of windows"""
         self.is_process_running = False
-        self.signals = Process_Monitor_Emitter()
+        self.signals = ProcessMonitorEmitter()
 
         self.running = False
 
@@ -250,7 +237,7 @@ class Process_Monitor_Worker(QRunnable):
         self.running = False
 
 
-class Main_Window(QMainWindow):
+class MainWindow(QMainWindow):
     def __init__(self, process_monitor_emitter, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -343,8 +330,7 @@ class Main_Window(QMainWindow):
         """Start process monitor if it is not running"""
         if self.pm is None:
             self.le_monitor_status.setText("Monitor started")
-            # [ ] Add some logic to dynamicly update the monitor status from a function. Change colors/update text in one function
-            self.pm = Process_Monitor_Worker(
+            self.pm = ProcessMonitorWorker(
                 self.process_monitor_emitter, self.settings["monitor.process.title"]
             )
             self.threadpool.start(self.pm)
@@ -485,8 +471,6 @@ class Main_Window(QMainWindow):
                 )
                 self.pm.focus_on_monitor_window()
 
-        # [ ] add logic to update focus if we are on a monitored joystick determined against the settings monitored axis
-
     def update_monitored_joystick(self, joy_id, is_checked):
         """Update the settings to add/remove the joystick from the monitored
         list based on is_checked
@@ -507,12 +491,12 @@ class Main_Window(QMainWindow):
             self.settings["monitor.joysticks"] = arr
 
 
-def Main():
-    joystick_emitter = Joystick_Event_Emitter()
-    process_monitor_emitter = Process_Monitor_Emitter()
+def main():
+    joystick_emitter = JoystickEventEmitter()
+    process_monitor_emitter = ProcessMonitorEmitter()
 
     app = QApplication(sys.argv)
-    window = Main_Window(process_monitor_emitter)
+    window = MainWindow(process_monitor_emitter)
     window.show()
 
     # Connect the signals to the GUI slots
@@ -521,7 +505,7 @@ def Main():
 
     # Start pygame in a separate thread
     thread = threading.Thread(
-        target=Joystick_Thread, args=(joystick_emitter,), daemon=True
+        target=joystick_thread, args=(joystick_emitter,), daemon=True
     )
     thread.start()
 
@@ -529,4 +513,4 @@ def Main():
 
 __version__ = get_version()
 if __name__ == "__main__":
-    Main()
+    main()
