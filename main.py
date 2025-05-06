@@ -477,7 +477,7 @@ class Main_Window(QMainWindow):
         if self.settings["monitor.process.enabled"]:
             if joy_id in self.settings["monitor.joysticks"]:
                 print(
-                    "Joystick {joy_id} movement detect, joystick is monitored. Changing Focus"
+                    f"Joystick {joy_id} movement detect, joystick is monitored. Changing Focus"
                 )
                 self.pm.focus_on_monitor_window()
 
