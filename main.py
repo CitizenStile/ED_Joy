@@ -59,6 +59,35 @@ def get_version():
         ret = data["project"]["version"]
     return ret
 
+
+class ProcessMonitor:
+    _instance = None
+    _lock = threading.Lock()  # Ensure that we have thread-safe access
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:  # Lock only if we are not initialized
+                if (cls._instance is None):
+                    # Verify that we did not get initialized before we locked
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        """Initialization logic that will only run the first time"""
+        if hasattr(self, "_initialized"):
+            return  # short circuit if we are initialized
+
+        self._sleep = None
+        """How long we should sleep on each pass."""
+        self.fps = 30
+        """Our targeted FPS, used to determine how often to run"""
+        self._halt_thread = False
+        self._running = False
+        self._initialized = True
+
+        self._emitter = JoystickEventEmitter()
+        """Joystick Event Emitter"""
+
 class ProcessMonitorWorker(QRunnable):
     def __init__(
         self, emitter: ProcessMonitorEmitter, monitor_window_name, *args, **kwargs
@@ -73,6 +102,7 @@ class ProcessMonitorWorker(QRunnable):
 
         self.queue = queue.Queue()
         self._win_list = []
+
         """Internal list of windows"""
         self.is_process_running = False
         self.signals = ProcessMonitorEmitter()
@@ -156,9 +186,6 @@ class ProcessMonitorWorker(QRunnable):
             self.is_process_running = is_running
             print(f"Is running: {is_running}")
             self.emitter.process_running.emit(self.monitor_name, is_running)
-            # [ ] Need to call signal to indicate run state has changed
-
-        pass
 
     def run(self):
         """Start running the process monitor worker"""
