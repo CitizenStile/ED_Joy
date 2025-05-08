@@ -1,3 +1,4 @@
+import atexit
 import ctypes
 import os
 import queue
@@ -18,11 +19,9 @@ from settings import Settings
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 import pygame as pg
 from PySide6.QtCore import (
-    QObject,
     QRunnable,
     QThreadPool,
-    Signal,
-    Slot,
+    Slot,  # noqa: F401
 )
 from PySide6.QtGui import (
     QAction,
@@ -40,68 +39,25 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from Utilities.Emitters import (
+    JoystickEventEmitter,
+    ProcessMonitorEmitter,
+)
+from Utilities.Joysticks import Joysticks
+
 
 def get_version():
+    """Read the project version from pyproject.toml.
+    Returns:
+        str: semver version
+    """
     pyproject = Path(__file__).parent / "pyproject.toml"
     with Path(pyproject).open("rb") as f:
         data = tomllib.load(f)
-    return data["project"]["version"]
-
-class JoystickEventEmitter(QObject):
-    joystick_axis_update = Signal(
-        int,  # Joystick ID
-        int,  # Axis
-        int,  # New value
-    )
-    joystick_button = Signal(
-        int,  # Joystick ID
-        int,  # Button ID
-    )
-    joystick_button_up = Signal(
-def joystick_thread(emitter: JoystickEventEmitter):
-    pg.init()
-    pg.joystick.init()
-
-    count = pg.joystick.get_count()
-    if count == 0:
-        print("No joystick found.")
-        return
-
-    joysticks = []
-
-    for j in range(0, count):
-        joysticks.append(pg.joystick.Joystick(j))
-        joysticks[j].init()
-        print("JOY {}: {} initialized:".format(j, joysticks[j].get_name()))
-        print(" - Axis: {}".format(joysticks[j].get_numaxes()))
-        print(" - Buttons: {}".format(joysticks[j].get_numbuttons()))
-        print(" - Hats: {}".format(joysticks[j].get_numhats()))
-
-        for ax in range(0, joysticks[j].get_numaxes()):
-            emitter.joystick_axis_update.emit(j, ax, joysticks[j].get_axis(ax))
-
-    while True:
-        pg.event.pump()
-        for event in pg.event.get():
-            if event.type == pg.JOYAXISMOTION:
-                emitter.joystick_axis_update.emit(
-                    event.joy,
-                    event.axis,
-                    int(event.value * 100),
-                )
-            if event.type == pg.JOYBUTTONDOWN:
-                print("Joy: {} Btn: {} Pressed".format(event.joy, event.button))
-
-            if event.type == pg.JOYBUTTONUP:
-                print("Joy: {} Btn: {} Released".format(event.joy, event.button))
-
-            if event.type == pg.JOYHATMOTION:
-                print(
-                    "Joy: {} Hat: {} Val:{}".format(event.joy, event.hat, event.value)
-                )
-
-        pg.time.wait(50)
-
+    ret = "0.0.0"
+    if "project" in data and "version" in data["project"]:
+        ret = data["project"]["version"]
+    return ret
 
 class ProcessMonitorWorker(QRunnable):
     def __init__(
@@ -125,7 +81,7 @@ class ProcessMonitorWorker(QRunnable):
 
     def __enum_windows_callback(self, hwnd, result):
         """capture all running processes with window names"""
-        # [ ] potentially refactor the code here so that we are only saving relevant names
+        # [ ] potentially refactor to only save relevant names
         name = win32gui.GetWindowText(hwnd)
         # we can exclude blank names
         if name:
@@ -145,11 +101,11 @@ class ProcessMonitorWorker(QRunnable):
             self._focus_window(hwnd, force)
 
     def _focus_window(self, hwnd, force=False):
-        """Private: Set focused window to hwnd. This will gracefully continue if it fails
+        """Private: Set focused window to hwnd. Gracefully continue if it fails.
 
         Args:
             hwnd (hwnd): Window Handle
-            force (bool, optional): Force focus by hooking into current active window. Defaults to False.
+            force (bool, optional): Force focus. Defaults to False.
         """
         try:
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
@@ -170,6 +126,7 @@ class ProcessMonitorWorker(QRunnable):
         user32 = ctypes.windll.user32
         foreground_hwnd = user32.GetForegroundWindow()
         if foreground_hwnd == hwnd_target:
+            print("Aready focused, doing nothing")
             return  # We already have focus
 
         foreground_tid = user32.GetWindowThreadProcessId(foreground_hwnd, 0)
@@ -185,8 +142,9 @@ class ProcessMonitorWorker(QRunnable):
             win32gui.ShowWindow(hwnd_target, win32con.SW_RESTORE)
             win32gui.SetForegroundWindow(hwnd_target)
         except Exception as e:
-            # print(f"Exception occurred while focusing. {e}")
-            pass
+            print("Exception occurred while focusing.")
+            print(e)
+
         # Detach from foreground thread
         user32.AttachThreadInput(current_thread_id, foreground_tid, False)
         user32.AttachThreadInput(current_thread_id, target_tid, False)
@@ -235,7 +193,6 @@ class ProcessMonitorWorker(QRunnable):
     def stop(self):
         """Stop the process monitor worker"""
         self.running = False
-
 
 class MainWindow(QMainWindow):
     def __init__(self, process_monitor_emitter, *args, **kwargs):
@@ -467,7 +424,7 @@ class MainWindow(QMainWindow):
         if self.settings["monitor.process.enabled"]:
             if joy_id in self.settings["monitor.joysticks"]:
                 print(
-                    f"Joystick {joy_id} movement detect, joystick is monitored. Changing Focus"
+                    f"Joystick {joy_id} movement detect, joystick is monitored."
                 )
                 self.pm.focus_on_monitor_window()
 
@@ -484,15 +441,24 @@ class MainWindow(QMainWindow):
             if int(joy_id) not in self.settings["monitor.joysticks"]:
                 joysticks = self.settings["monitor.joysticks"]
                 # We need to modify the joysticks then reassign to trigger a save
-                joysticks.append(int(id))
+                joysticks.append(int(joy_id))
                 self.settings["monitor.joysticks"] = joysticks
         else:
-            arr = [x for x in self.settings["monitor.joysticks"] if x != int(id)]
+            arr = [x for x in self.settings["monitor.joysticks"] if x != int(joy_id)]
             self.settings["monitor.joysticks"] = arr
 
 
+def cleanup():
+    """Cleanup tasks to minimize exceptions/errors on shutdown"""
+    Joysticks().stop()
+
 def main():
-    joystick_emitter = JoystickEventEmitter()
+    # make sure that we register a cleanup script
+    atexit.register(cleanup)
+
+    joysticks = Joysticks()
+    joysticks.start()
+
     process_monitor_emitter = ProcessMonitorEmitter()
 
     app = QApplication(sys.argv)
@@ -500,14 +466,8 @@ def main():
     window.show()
 
     # Connect the signals to the GUI slots
-    joystick_emitter.joystick_axis_update.connect(window.update_axes_labels)
+    joysticks.emitter.axis_movement.connect(window.update_axes_labels)
     process_monitor_emitter.process_running.connect(window.update_process_monitor)
-
-    # Start pygame in a separate thread
-    thread = threading.Thread(
-        target=joystick_thread, args=(joystick_emitter,), daemon=True
-    )
-    thread.start()
 
     sys.exit(app.exec())
 
