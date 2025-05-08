@@ -100,7 +100,7 @@ class Joysticks:
         with self._lock:
             self._halt_thread = True
 
-    def __joystick_thread(self):
+    def get_joysticks_and_axis(self):
         self._joysticks = []
         for j in range(0, self._count):
             joy = pg.joystick.Joystick(j)
@@ -113,6 +113,8 @@ class Joysticks:
                 # Yay thread safety
                 self._joysticks.append(joy)
 
+    def __joystick_thread(self):
+        self.get_joysticks_and_axis()
         while True:
             pg.event.pump()
             now = time.time()
