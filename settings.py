@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import toml
 
 
@@ -7,37 +9,32 @@ class Settings:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(Settings, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance.load_settings()
         return cls._instance
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         if not hasattr(self, "initialized"):  # Ensure that we only init once
             self.initialized = True
             if not hasattr(self, "_settings"):
                 self._settings = {}
 
     def load_settings(self):
-        """Load settings from TOML file"""
+        """Load settings from TOML file."""
         try:
-            with open(self._config_file, "r") as file:
+            with Path(self._config_file).open() as file:
                 self._settings = toml.load(file)
         except FileNotFoundError:
-            print(
-                "Warning: {} not found. Using default settings.".format(
-                    self._config_file
-                )
-            )
+            print(f"Warning: {self._config_file} not found. Using default settings.")
             self._settings = {}  # Empty or default settings can be used here
 
     def save_settings(self):
-        """Write settings to the TOML file"""
-        with open(self._config_file, "w") as file:
+        """Write settings to the TOML file."""
+        with Path(self._config_file).open("w") as file:
             toml.dump(self._settings, file)
 
     def get(self, dotted_key, default=None):
-        """Retrieve setting by key"""
-
+        """Retrieve setting by key."""
         keys = dotted_key.split(".")
         value = self._settings
         for key in keys:
