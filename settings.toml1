@@ -1,0 +1,7 @@
+[monitor]
+joysticks = [ 0, 1,]
+
+[monitor.process]
+enabled = false
+title = "Elite - Dangerous (CLIENT)"
+display_name = "Elite Dangerous"

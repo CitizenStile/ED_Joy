@@ -9,10 +9,7 @@ from PySide6.QtCore import (
     Slot,  # noqa: F401
 )
 
-try:
-    from Utilities.Emitters import JoystickEventEmitter
-except Exception:
-    from Emitters import JoystickEventEmitter
+from ed_joy.emitters import JoystickEventEmitter
 
 
 class Joysticks:

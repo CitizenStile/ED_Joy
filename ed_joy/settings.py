@@ -2,27 +2,34 @@ from pathlib import Path
 
 import toml
 
+from ed_joy import resource_path
+
 
 class Settings:
     _instance = None
-    _config_file = "settings.toml"
+    __config_file = "config\\settings.toml"
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.load_settings()
+
         return cls._instance
 
     def __init__(self):
         if not hasattr(self, "initialized"):  # Ensure that we only init once
             self.initialized = True
+            self.load_settings()
             if not hasattr(self, "_settings"):
                 self._settings = {}
+
+    @property
+    def _config_path(self):
+        return resource_path(self.__config_file)
 
     def load_settings(self):
         """Load settings from TOML file."""
         try:
-            with Path(self._config_file).open() as file:
+            with Path(self._config_path).open() as file:
                 self._settings = toml.load(file)
         except FileNotFoundError:
             print(f"Warning: {self._config_file} not found. Using default settings.")
