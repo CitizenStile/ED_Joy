@@ -1,3 +1,4 @@
+from pathlib import Path
 
 import toml
 
@@ -27,7 +28,7 @@ class Settings:
         Returns:
             Path
         """
-        return resource_path(self.__config_file)
+        return resource_path(self.__config_file, True)
 
     def _open_config(self, mode = 'r'):
         """Open the config file in the specified mode. Recursively create directories,
@@ -37,12 +38,14 @@ class Settings:
         Returns:
             file : Contextmanger stream to the file
         """
-        return self._cofig_path.mkdir(parents=True, exist_ok=True).open(mode)
+        pth = Path(self._config_path)
+        pth.parent.mkdir(parents=True, exist_ok=True)
+        return pth.open(mode)
 
     def load_settings(self):
         """Load settings from TOML file."""
         try:
-            with self._open_config() as file:
+            with Path(self._config_path).open() as file:
                 self._settings = toml.load(file)
         except FileNotFoundError:
             print(f"Warning: {self._config_file} not found. Using default settings.")
@@ -50,7 +53,7 @@ class Settings:
 
     def save_settings(self):
         """Write settings to the TOML file."""
-        with self._open_config("w") as file:
+        with Path(self._config_path).open("w") as file:
             toml.dump(self._settings, file)
 
     def get(self, dotted_key, default=None):
