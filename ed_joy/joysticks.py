@@ -1,4 +1,4 @@
-import os
+import os  # noqa: N999
 import threading
 import time
 

@@ -1,4 +1,4 @@
-import sys
+import sys  # noqa: N999
 from os import path
 
 
