@@ -14,16 +14,19 @@ While all Joystick/HOTAS should work without issue, the following are confirmed 
 - [X] Mark joystick for monitoring
 - [X] Save/load settings
 - [ ] List running apps/determine focused application
-- [ ] Set focused application
+- [X] Set focused application
 - [ ] Launch additional apps when Elite Dangerous is running
 - [ ] Terminate launched apps when Elite Dangerous is closed
 - [ ] Check for updates
 - [ ] Bundle as .exe
-- [ ] Hotplug support
-
+- [ ] Hotplug joystick support
+- [X] Logging framework
 
 \>\> If you have a feature request, please raise it as an **issue** <<
 
+## Additional functionality not yet on roadmap
+- [ ] Joystick deadzone
+- [ ] Display button press state
 
 
 ### Requirements
