@@ -10,6 +10,9 @@ from PySide6.QtCore import (
 )
 
 from ed_joy.emitters import JoystickEventEmitter
+from ed_joy.logging import get_logger
+
+# Ensure we have a log for this module
 
 
 class Joysticks:
@@ -17,19 +20,22 @@ class Joysticks:
     _lock = threading.Lock()  # Ensure that we have thread-safe access
 
     def __new__(cls, *args, **kwargs):
+
         if cls._instance is None:
             with cls._lock:  # Lock only if we are not initialized
                 if (
                     cls._instance is None
                 ):  # Verify that we did not get initialized before we locked
                     cls._instance = super(Joysticks, cls).__new__(cls)
+                    cls.__logger = get_logger(__name__)
+                    cls.__logger.debug("New instance created.")
         return cls._instance
 
     def __init__(self):
         """Initialization logic that will only run the first time"""
         if hasattr(self, "_initialized"):
             return  # short circuit if we are initialized
-
+        self.__logger.debug("Initializing joystick class.")
         self._sleep = None
         """How long we should sleep on each pass."""
         self.fps = 30
@@ -39,6 +45,7 @@ class Joysticks:
         self._initialized = True
 
         self._emitter = JoystickEventEmitter()
+        self.__logger.debug("joystick class initialized.")
         """Joystick Event Emitter"""
 
     @property

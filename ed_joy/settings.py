@@ -19,6 +19,7 @@ class Settings:
         if not hasattr(self, "initialized"):  # Ensure that we only init once
             self.initialized = True
             self.load_settings()
+            self.get_defaults()
             if not hasattr(self, "_settings"):
                 self._settings = {}
 
@@ -48,8 +49,33 @@ class Settings:
             with Path(self._config_path).open() as file:
                 self._settings = toml.load(file)
         except FileNotFoundError:
-            print(f"Warning: {self._config_file} not found. Using default settings.")
+            print(f"Warning: {self.__config_file} not found. Using default settings.")
             self._settings = {}  # Empty or default settings can be used here
+
+    def get_defaults(self, overwrite=False):
+        """Ensure the settings dict is populated with at least the default values
+        Args:
+            overwrite (bool, optional): Overwrite the setting with the default value.
+                                        Defaults to False.
+        """
+
+        if self["logging.level"] is None or overwrite:
+            self["logging.level"] = "DEBUG"
+
+        if self["monitor.joysticks"] is None or overwrite:
+            self["monitor.joysticks"] = []
+
+        if self["monitor.process.enabled"] is None or overwrite:
+            self["monitor.process.enabled"] = False
+
+        # # Populate the default Elite Dangerous Client title
+        if self["monitor.process.title"] is None or overwrite:
+            self["monitor.process.title"] = "Elite - Dangerous (CLIENT)"
+
+        # # Populate the default display name (only used when reporting status)
+        if self["monitor.process.display_name"] is None or overwrite:
+            self["monitor.process.display_name"] = "Elite Dangerous"
+
 
     def save_settings(self):
         """Write settings to the TOML file."""

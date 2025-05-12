@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pywintypes
 
+from ed_joy import logging
+
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:
@@ -232,11 +234,11 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("ED Joy {}".format(get_version()))
         self.generate_base_layout()
-        self.init_settings()
+        self.settings = Settings()
         self.pm = None
         self.process_monitor_emitter = process_monitor_emitter
 
-        pg.joystick.init()
+        # pg.joystick.init()
 
         self.threadpool = QThreadPool()
 
@@ -337,16 +339,12 @@ class MainWindow(QMainWindow):
 
         self.joystick_axis_widgets = {}
         self.joystick_monitor_widgets = {}
-        # [ ] Implement deadzone on joysticks
-        # self.joystick_deadzone_widgets = {}
-        # [ ] Add display for button's being pressed on Joystick
 
         # For each Joystick
         for joy_index in range(0, pg.joystick.get_count()):
             joy = pg.joystick.Joystick(joy_index)
             joy_gb = QGroupBox()
             joy_gb.setTitle(joy.get_name())
-            # [ ] We could add indicators for each button/hat
             axes_group_box = QGroupBox()
             axes_group_box.setTitle("Axis")
 
@@ -415,24 +413,6 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("Launching")
         status_bar.addPermanentWidget(self.status_label)
 
-    def init_settings(self):
-        """Ensure that settings exist, if not give them a default value"""
-        self.settings = Settings()  # This will trigger a load
-        if self.settings["monitor.joysticks"] is None:
-            self.settings["monitor.joysticks"] = []
-
-        # Ensure that we have a process to monitor defined.
-        if self.settings["monitor.process.enabled"] is None:
-            self.settings["monitor.process.enabled"] = False
-
-        # Populate the default Elite Dangerous Client title
-        if self.settings["monitor.process.title"] is None:
-            self.settings["monitor.process.title"] = "Elite - Dangerous (CLIENT)"
-
-        # Populate the default display name (only used when reporting status)
-        if self.settings["monitor.process.display_name"] is None:
-            self.settings["monitor.process.display_name"] = "Elite Dangerous"
-
     def joystick_monitor_checkbox_clicked(self):
         """Callback to add/remove monitored joystick based on the ID from the
         checkbox name
@@ -485,7 +465,11 @@ def cleanup():
     Joysticks().stop()
 
 def run():
+    logger = logging.get_logger(__name__)
+    logger = logging.get_logger(__name__)
+    logger.debug("Core starting up")
     # make sure that we register a cleanup script
+    logger.debug("Adding cleanup register")
     atexit.register(cleanup)
 
     joysticks = Joysticks()
