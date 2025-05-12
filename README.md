@@ -72,6 +72,9 @@ details
 
 ## Change Log:
 
+### 0.4.0:
+- Major overhaul of backend logic and file layout.
+
 ### 0.2.0:
 - Updating readme
 - Cleanup UI

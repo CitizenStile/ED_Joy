@@ -18,6 +18,7 @@ entry = ['main.py']
 name = 'ed_joy'
 
 """END - Common functions for build specs  """
+
 """
 Only the following command-line options have an effect when building from a spec file:
     --upx-dir
@@ -33,7 +34,7 @@ def file():
     call_installer("ed_joy_onefile.spec","dist\\onefile")
 
 def folder():
-    call_installer("ed_joy_folder.spec","dist\\folder")
+    call_installer("ed_joy_onefolder.spec","dist")
 
 def both():
     folder()
