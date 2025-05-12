@@ -1,16 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
+# type: ignore
+"""Spec for building OneFolder version of distribution"""
+import os
+import sys
 
-additional_files = [
-    ('assets', 'assets'),
-    ('config', 'config'),
-    ('pyproject.toml', '.'),
-]
+# PyInstaller, add an additional folder to parse spec from
+sys.path.insert(0, os.path.dirname(SPEC))
 
-a = Analysis(  # noqa: F821 # type: ignore
-    ['main.py'],
+import build as com
+
+a = Analysis(
+    com.entry,
     pathex=[],
     binaries=[],
-    datas=additional_files,
+    datas=com.additional_files,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,32 +22,37 @@ a = Analysis(  # noqa: F821 # type: ignore
     noarchive=False,
     optimize=0,
 )
-pyz = PYZ(a.pure)  # noqa: F821 # type: ignore
 
-exe = EXE(  # noqa: F821 # type: ignore
+pyz = PYZ(a.pure)
+
+exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
-    name='ed_joy',
+    exclude_binaries=True,  # True for OneFolder, False for OneFile
+    name=com.name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
+    upx_exclude=[],
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets\\icon.ico'],
+    icon=com.icon,
 )
-coll = COLLECT(  # noqa: F821 # type: ignore
+
+coll = COLLECT(  # Used for OneFolder
     exe,
     a.binaries,
     a.datas,
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='ed_joy',
+    name=com.name,
 )
