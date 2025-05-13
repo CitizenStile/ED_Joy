@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pywintypes
 
-from ed_joy import logging
+from ed_joy import logs
 
 try:
     import tomllib  # Python 3.11+
@@ -465,8 +465,8 @@ def cleanup():
     Joysticks().stop()
 
 def run():
-    logger = logging.get_logger(__name__)
-    logger = logging.get_logger(__name__)
+    logger = logs.get_logger(__name__)
+    logger = logs.get_logger(__name__)
     logger.debug("Core starting up")
     # make sure that we register a cleanup script
     logger.debug("Adding cleanup register")
