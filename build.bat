@@ -14,4 +14,10 @@ if DEFINED BUNDLE_TYPE (
     python build.py
 )
 
+@REM Code Signing script - only run if script exists
+set CODE_SIGNING = "C:\_dev\code_signing\sign_ed_joy.bat"
+if exists %CODE_SIGNING% (
+    %CODE_SIGNING%
+)
+
 endlocal
