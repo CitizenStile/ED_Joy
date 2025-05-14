@@ -1,6 +1,6 @@
 [project]
 name = "ED_Joy"
-version = "0.4.0"
+version = "0.5dev.0"
 description = "Joystick monitoring and re-focusing on specified app"
 authors = [{name="CitizenStile", email="citizenstile@pm.me"}]
 
