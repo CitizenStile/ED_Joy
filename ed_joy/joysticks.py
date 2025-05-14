@@ -10,7 +10,7 @@ from PySide6.QtCore import (
 )
 
 from ed_joy.emitters import JoystickEventEmitter
-from ed_joy.logging import get_logger
+from ed_joy.logs import get_logger
 
 # Ensure we have a log for this module
 
