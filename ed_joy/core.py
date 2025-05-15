@@ -3,23 +3,15 @@ import ctypes
 import os
 import queue
 import sys
-import threading
 import time
-from pathlib import Path
 
 import pywintypes
-
-from ed_joy import logs
-
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:
-    # For older versions: `pip install tomli`
-    import tomli as tomllib  # type: ignore
 import win32api
 import win32con
 import win32gui
 
+from ed_joy import logs
+from ed_joy.process_monitor import ProcessMonitor
 from ed_joy.settings import Settings
 
 # OS environ call to hide the PyGame support prompt
@@ -28,11 +20,8 @@ import pygame as pg
 from PySide6.QtCore import (
     QRunnable,
     QThreadPool,
-    Slot,  # noqa: F401
 )
-from PySide6.QtGui import (
-    QAction,
-)
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -46,54 +35,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ed_joy.emitters import (
-    JoystickEventEmitter,
-    ProcessMonitorEmitter,
-)
+from ed_joy import get_version
+from ed_joy.emitters import ProcessMonitorEmitter
 from ed_joy.joysticks import Joysticks
+from ed_joy.process_monitor import ProcessMonitor
 
-
-def get_version():
-    """Read the project version from pyproject.toml.
-    Returns:
-        str: semver version
-    """
-    pyproject = Path(__file__).parent.parent / "pyproject.toml"
-    with pyproject.open("rb") as f:
-        data = tomllib.load(f)
-    ret = "0.0.0"
-    if "project" in data and "version" in data["project"]:
-        ret = data["project"]["version"]
-    return ret
-
-
-class ProcessMonitor:
-    _instance = None
-    _lock = threading.Lock()  # Ensure that we have thread-safe access
-
-    def __new__(cls):
-        if cls._instance is None:
-            with cls._lock:  # Lock only if we are not initialized
-                if (cls._instance is None):
-                    # Verify that we did not get initialized before we locked
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        """Initialization logic that will only run the first time"""
-        if hasattr(self, "_initialized"):
-            return  # short circuit if we are initialized
-
-        self._sleep = None
-        """How long we should sleep on each pass."""
-        self.fps = 30
-        """Our targeted FPS, used to determine how often to run"""
-        self._halt_thread = False
-        self._running = False
-        self._initialized = True
-
-        self._emitter = JoystickEventEmitter()
-        """Joystick Event Emitter"""
 
 class ProcessMonitorWorker(QRunnable):
     def __init__(
@@ -466,7 +412,7 @@ def cleanup():
 
 def run():
     logger = logs.get_logger(__name__)
-    logger = logs.get_logger(__name__)
+
     logger.debug("Core starting up")
     # make sure that we register a cleanup script
     logger.debug("Adding cleanup register")
@@ -474,6 +420,9 @@ def run():
 
     joysticks = Joysticks()
     joysticks.start()
+
+    process_monitor = ProcessMonitor()
+    process_monitor.start
 
     process_monitor_emitter = ProcessMonitorEmitter()
 
