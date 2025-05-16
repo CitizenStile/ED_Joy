@@ -422,7 +422,7 @@ def run():
     joysticks.start()
 
     process_monitor = ProcessMonitor()
-    process_monitor.start
+    process_monitor.start()
 
     process_monitor_emitter = ProcessMonitorEmitter()
 
